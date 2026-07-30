@@ -17,34 +17,34 @@ export class BootScene extends Phaser.Scene {
         //   run:  2880x2160 = 4x3 grid of 720x720 frames (12)
         //   idle: 1902x2070 = 6x3 grid of 317x690 frames (18)
         this.load.image('playerrun_src', 'assets/Runninganimation.png');
-        this.load.image('playeridle_src', 'assets/idlespritesheet.png');
+        this.load.image('playeridle_src', 'assets/Idlespritesheet.png');
         this.load.spritesheet('playermelee', 'assets/Sword.png', {
             frameWidth: 64,
             frameHeight: 64
         });
 
         // --- Enemy Spritesheets ---
-        this.load.spritesheet('enemyidle', 'assets/Enemyanimations/Enemy3-Idle.png', {
+        this.load.spritesheet('enemyidle', 'assets/Enemy3-Idle.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyhit', 'assets/Enemyanimations/Enemy3-Hit.png', {
+        this.load.spritesheet('enemyhit', 'assets/Enemy3-Hit.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemydeath', 'assets/Enemyanimations/Enemy3-Die.png', {
+        this.load.spritesheet('enemydeath', 'assets/Enemy3-Die.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyattackstart', 'assets/Enemyanimations/Enemysmashattackstart.png', {
+        this.load.spritesheet('enemyattackstart', 'assets/Enemysmashattackstart.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyattackloop', 'assets/Enemyanimations/Enemysmashloop.png', {
+        this.load.spritesheet('enemyattackloop', 'assets/Enemysmashloop.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyattackend', 'assets/Enemyanimations/Enemysmashattackend.png', {
+        this.load.spritesheet('enemyattackend', 'assets/Enemysmashattackend.png', {
             frameWidth: 64,
             frameHeight: 64
         });
