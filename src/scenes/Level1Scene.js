@@ -101,8 +101,9 @@ export class Level1Scene extends Phaser.Scene {
         this.input.on('pointerdown', (pointer) => this.fireBullet(pointer));
 
         // --- Audio ---
-        this.backgroundMusic = this.sound.add('introtheme', { loop: true, volume: 0.5 });
+        this.backgroundMusic = this.sound.add('introtheme', { loop: true, volume: 0.3 });
         this.backgroundMusic.play();
+        
         // Sounds live on the global manager and don't auto-stop when the scene
         // ends, so kill the track on shutdown to prevent it overlapping the next scene.
         this.events.once('shutdown', () => this.backgroundMusic.stop());

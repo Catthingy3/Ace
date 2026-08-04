@@ -28,10 +28,11 @@ export class MenuScene extends Phaser.Scene {
         
         this.titlemusic = this.sound.add('Titletheme', { loop: true });
         this.titlemusic.play();
+        this.titlemusic.setVolume(1.0);
         // Stop the title theme on shutdown so it doesn't overlap the level's music.
         this.events.once('shutdown', () => this.titlemusic.stop());
         const start = () => this.scene.start('Level1');
         this.input.keyboard.once('keydown-SPACE', start);
-        this.input.once('pointerdown', start);
+        this.input.once( 'pointerdown', start);
     }
 }
