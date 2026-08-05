@@ -22,6 +22,7 @@ export class BootScene extends Phaser.Scene {
             frameWidth: 64,
             frameHeight: 64
         });
+        this.load.image('playerfall_src', 'assets/fallinganimation.png');
 
         // --- Enemy Spritesheets ---
         this.load.spritesheet('enemyidle', 'assets/Enemy3-Idle.png', {
@@ -82,6 +83,9 @@ export class BootScene extends Phaser.Scene {
         this.bakeSheet('playeridle_src', 'playeridle', {
             cols: 6, rows: 3, srcW: 317, srcH: 690, dstW: 88, dstH: 192
         });
+        this.bakeSheet('playerfall_src', 'playerfall', {
+            cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
+        });
 
         // --- Player Animations ---
         this.anims.create({
@@ -101,6 +105,12 @@ export class BootScene extends Phaser.Scene {
             frames: this.anims.generateFrameNumbers('playermelee', { start: 0, end: 4 }),
             frameRate: 10,
             repeat: 0
+        });
+        this.anims.create({
+            key: 'playerfall',
+            frames: this.anims.generateFrameNumbers('playerfall', { start: 0, end: 7 }),
+            frameRate: 15,
+            repeat: -1
         });
 
         // --- Enemy Animations ---

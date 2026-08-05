@@ -127,33 +127,39 @@ export class Level1Scene extends Phaser.Scene {
 
     // --- Update Loop ---
     update() {
-        // --- Player Movement ---
+        const body = this.player.body;
+        const onGround = body && (body.touching?.down || body.blocked?.down || body.onFloor && body.onFloor());
+
+        // --- Player Movement (velocity + facing only) ---
+        let moving = false;
         if (this.wasd.right.isDown) {
             this.player.direction = 'right';
             this.player.setVelocityX(200);
-            if (!this.player.isAttacking) {
-                this.player.flipX = true;
-                this.player.play('playerrun', true);
-            }
+            if (!this.player.isAttacking) this.player.flipX = true;
+            moving = true;
         } else if (this.wasd.left.isDown) {
             this.player.direction = 'left';
             this.player.setVelocityX(-200);
-            if (!this.player.isAttacking) {
-                this.player.flipX = false;
-                this.player.play('playerrun', true);
-            }
+            if (!this.player.isAttacking) this.player.flipX = false;
+            moving = true;
         } else {
             this.player.setVelocityX(0);
-            if (!this.player.isAttacking) {
-                this.player.play('playeridle', true);
-            }
         }
 
         // --- Jumping ---
-        const body = this.player.body;
-        const onGround = body && (body.touching?.down || body.blocked?.down || body.onFloor && body.onFloor());
         if (this.wasd.up.isDown && onGround) {
             this.player.setVelocityY(-500);
+        }
+
+        // --- Animation: melee > fall > run > idle ---
+        if (!this.player.isAttacking) {
+            if (!onGround && this.player.body.velocity.y > 0) {
+                this.player.play('playerfall', true);
+            } else if (onGround && moving) {
+                this.player.play('playerrun', true);
+            } else if (onGround && !moving) {
+                this.player.play('playeridle', true);
+            }
         }
 
         // --- Melee Hitbox Positioning ---
