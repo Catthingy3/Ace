@@ -8,8 +8,12 @@ const DEBUG_VERSION = '1.1';
 // constant world-space size across those different-resolution sheets. Fractions
 // are taken from the original 64px tuning: setSize(25,55) / setOffset(22,6).
 const PLAYER_DISPLAY_HEIGHT = 96;
-const PLAYER_BODY = { w: 25 / 64, h: 55 / 64, ox: 22 / 64, oy: 6 / 64 };
-
+const PLAYER_BODY = { w: 25 / 64, h: 57 / 64, ox: 22 / 64, oy: 6 / 64 };
+const COYOTE_MS = 120;
+// Only switch to the fall animation once descending faster than this (px/s). Tiny
+// tile-edge bounces keep vy small; a real fall blows past it. Prevents the fall/run
+// flicker (and the hitbox-resize feedback loop it caused) at platform edges.
+const FALL_VELOCITY = 100;
 /**
  * Level1Scene
  * The actual gameplay. Assets and animations are loaded/registered in BootScene,
@@ -52,6 +56,7 @@ export class Level1Scene extends Phaser.Scene {
         this.player.meleeActive = false;
         this.player.health = 3;
         this.player.setCollideWorldBounds(true);
+        this.player.lastgroundedtime = 0;
 
         this.player.on('animationupdate', (anim, frame) => {
             if (anim.key !== 'playermelee') return;
@@ -62,7 +67,7 @@ export class Level1Scene extends Phaser.Scene {
         this.physics.add.existing(this.playermeleeattackhitbox);
         this.playermeleeattackhitbox.body.setAllowGravity(false);
         this.physics.add.collider(this.player, groundLayer);
-
+        
         // --- Enemy Setup ---
         this.enemy = this.physics.add.sprite(750, 150, 'enemyidle');
         this.enemy.isAttacking = false;
@@ -111,12 +116,19 @@ export class Level1Scene extends Phaser.Scene {
         // --- Debug Tools ---
         this.physics.world.createDebugGraphic();
         this.physics.world.debugGraphic.visible = false;
-        this.debugVersionText = this.add.text(10, 10, `v${DEBUG_VERSION}`, {
+        // A scrollFactor(0) HUD element is still scaled by the camera zoom (setZoom(RES)),
+        // which pushes text placed at (10,10) off-screen. Position + scale it so it lands
+        // at the top-left at readable size regardless of RES.
+        const cam = this.cameras.main;
+        const uiX = cam.width / 2 + (10 - cam.width / 2) / cam.zoom;
+        const uiY = cam.height / 2 + (10 - cam.height / 2) / cam.zoom;
+        this.debugVersionText = this.add.text(uiX, uiY, `v${DEBUG_VERSION}`, {
             fontSize: '16px',
             fill: '#00ff00',
             fontFamily: 'monospace'
         });
         this.debugVersionText.setScrollFactor(0);
+        this.debugVersionText.setScale(1 / cam.zoom);
         this.debugVersionText.setVisible(false);
         this.input.keyboard.on('keydown-BACKTICK', () => {
             this.physics.world.debugGraphic.visible = !this.physics.world.debugGraphic.visible;
@@ -129,6 +141,10 @@ export class Level1Scene extends Phaser.Scene {
     update() {
         const body = this.player.body;
         const onGround = body && (body.touching?.down || body.blocked?.down || body.onFloor && body.onFloor());
+        if (onGround) {
+            this.player.lastgroundedtime = this.time.now;
+        }
+        const groundedRecently = this.time.now - this.player.lastgroundedtime < COYOTE_MS;
 
         // --- Player Movement (velocity + facing only) ---
         let moving = false;
@@ -147,19 +163,27 @@ export class Level1Scene extends Phaser.Scene {
         }
 
         // --- Jumping ---
-        if (this.wasd.up.isDown && onGround) {
+        if (this.wasd.up.isDown && (onGround || groundedRecently)) {
             this.player.setVelocityY(-500);
         }
 
         // --- Animation: melee > fall > run > idle ---
         if (!this.player.isAttacking) {
-            if (!onGround && this.player.body.velocity.y > 0) {
+            if (!groundedRecently && this.player.body.velocity.y > FALL_VELOCITY) {
                 this.player.play('playerfall', true);
-            } else if (onGround && moving) {
+            } else if (groundedRecently && moving) {
                 this.player.play('playerrun', true);
-            } else if (onGround && !moving) {
+            } else if (groundedRecently && !moving) {
                 this.player.play('playeridle', true);
             }
+        }
+
+        // --- Debug readout (toggle with backtick) ---
+        if (this.debugVersionText.visible) {
+            const anim = this.player.anims.currentAnim?.key ?? 'none';
+            this.debugVersionText.setText(
+                `v${DEBUG_VERSION}\nanim: ${anim}\nonGround: ${!!onGround}\nvy: ${Math.round(this.player.body.velocity.y)}`
+            );
         }
 
         // --- Melee Hitbox Positioning ---
@@ -222,8 +246,14 @@ export class Level1Scene extends Phaser.Scene {
         const fw = frame.realWidth;
         const fh = frame.realHeight;
         this.player.setScale(PLAYER_DISPLAY_HEIGHT / fh);
-        this.player.body.setSize(fw * PLAYER_BODY.w, fh * PLAYER_BODY.h, false);
-        this.player.body.setOffset(fw * PLAYER_BODY.ox, fh * PLAYER_BODY.oy);
+        // Size the body from the frame HEIGHT (not width) so the world-space hitbox is
+        // identical for every sheet -- fh cancels against the DISPLAY/fh scale. Using
+        // width made idle's box (88px sheet) thinner and offset vs run/fall (192px),
+        // so the box jumped sideways on each anim swap and shoved the player off edges.
+        const bw = fh * PLAYER_BODY.w;
+        this.player.body.setSize(bw, fh * PLAYER_BODY.h, false);
+        // Center horizontally in the frame; keep the original vertical placement.
+        this.player.body.setOffset((fw - bw) / 2, fh * PLAYER_BODY.oy);
     }
 
     // --- Enemy Actions ---
