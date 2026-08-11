@@ -8,7 +8,13 @@ const DEBUG_VERSION = '1.1';
 // constant world-space size across those different-resolution sheets. Fractions
 // are taken from the original 64px tuning: setSize(25,55) / setOffset(22,6).
 const PLAYER_DISPLAY_HEIGHT = 96;
-const PLAYER_BODY = { w: 25 / 64, h: 57 / 64, ox: 22 / 64, oy: 6 / 64 };
+const PLAYER_BODY = { w: 25 / 62, h: 57 / 64, ox: 22 / 64, oy: 6 / 64 };
+const PLAYER_HITBOX = {
+    playeridle: { w: 25 / 64, h: 63 / 64, ox: 0, oy: 0 },
+    playerrun: { w: 16 / 64, h: 61 / 64, ox: 0, oy: 0 },
+    playerfall: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 },
+    playermelee: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 },
+};
 const COYOTE_MS = 120;
 // Only switch to the fall animation once descending faster than this (px/s). Tiny
 // tile-edge bounces keep vy small; a real fall blows past it. Prevents the fall/run
@@ -250,10 +256,15 @@ export class Level1Scene extends Phaser.Scene {
         // identical for every sheet -- fh cancels against the DISPLAY/fh scale. Using
         // width made idle's box (88px sheet) thinner and offset vs run/fall (192px),
         // so the box jumped sideways on each anim swap and shoved the player off edges.
-        const bw = fh * PLAYER_BODY.w;
-        this.player.body.setSize(bw, fh * PLAYER_BODY.h, false);
-        // Center horizontally in the frame; keep the original vertical placement.
-        this.player.body.setOffset((fw - bw) / 2, fh * PLAYER_BODY.oy);
+        const animKey = this.player.anims.currentAnim?.key || 'playeridle';
+        const config = PLAYER_HITBOX[animKey] || PLAYER_BODY;
+        const bw = fh * config.w;
+        const bh = fh * config.h;
+        this.player.body.setSize(bw, bh, false);
+        // Center horizontally in the frame, add per-animation offset.
+        const xOffset = (fw - bw) / 2 + (fh * config.ox);
+        const yOffset = fh * config.oy;
+        this.player.body.setOffset(xOffset, yOffset);
     }
 
     // --- Enemy Actions ---
