@@ -14,6 +14,7 @@ const PLAYER_HITBOX = {
     playerrun: { w: 16 / 64, h: 61 / 64, ox: 0, oy: 0 },
     playerfall: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 },
     playermelee: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 },
+    playerrise: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 }
 };
 const COYOTE_MS = 120;
 // Only switch to the fall animation once descending faster than this (px/s). Tiny
@@ -53,7 +54,12 @@ export class Level1Scene extends Phaser.Scene {
         this.player.on('animationstart', () => this.syncPlayerSize());
         this.syncPlayerSize();
         // Camera can only follow the player once it exists.
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        // roundPixels MUST stay false: Phaser's preRender floors the lerped scroll and
+        // writes the floored value back, so with a lerp this small the per-frame advance
+        // (gap * 0.1) is < 1px and gets discarded entirely. The camera then stalls and
+        // ratchets in integer jumps instead of tracking, which reads as a ghosted second
+        // copy of the player during fast vertical motion (jumping at 500px/s).
+        this.cameras.main.startFollow(this.player, false, 0.1, 0.1);
 
         this.player.attackCooldown = 0;
         this.player.rangedAttackCooldown = 0;
@@ -173,9 +179,16 @@ export class Level1Scene extends Phaser.Scene {
             this.player.setVelocityY(-500);
         }
 
-        // --- Animation: melee > fall > run > idle ---
+        // --- Animation: melee > rise/fall > run > idle ---
+        // Air states are checked FIRST and gated on onGround, not groundedRecently.
+        // Coyote time extends jump *permission* only -- using it here meant that for the
+        // first COYOTE_MS of every jump the grounded branches still won, so run/idle
+        // played while ascending and rise only kicked in 120ms late.
         if (!this.player.isAttacking) {
-            if (!groundedRecently && this.player.body.velocity.y > FALL_VELOCITY) {
+            const vy = this.player.body.velocity.y;
+            if (!onGround && vy < -FALL_VELOCITY) {
+                this.player.play('playerrise', true);
+            } else if (!onGround && vy > FALL_VELOCITY) {
                 this.player.play('playerfall', true);
             } else if (groundedRecently && moving) {
                 this.player.play('playerrun', true);
@@ -254,8 +267,8 @@ export class Level1Scene extends Phaser.Scene {
         this.player.setScale(PLAYER_DISPLAY_HEIGHT / fh);
         // Size the body from the frame HEIGHT (not width) so the world-space hitbox is
         // identical for every sheet -- fh cancels against the DISPLAY/fh scale. Using
-        // width made idle's box (88px sheet) thinner and offset vs run/fall (192px),
-        // so the box jumped sideways on each anim swap and shoved the player off edges.
+        // width made narrower sheets' boxes thinner and offset vs the 192px ones, so
+        // the box jumped sideways on each anim swap and shoved the player off edges.
         const animKey = this.player.anims.currentAnim?.key || 'playeridle';
         const config = PLAYER_HITBOX[animKey] || PLAYER_BODY;
         const bw = fh * config.w;

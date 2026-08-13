@@ -14,15 +14,22 @@ export class BootScene extends Phaser.Scene {
         // Run and idle are high-res grid sheets. We keep the originals but never
         // draw them directly: create() bakes each down to a crisp gameplay-size
         // spritesheet (see bakeSheet). Loaded as plain images so we can composite.
-        //   run:  2880x2160 = 4x3 grid of 720x720 frames (12)
-        //   idle: 1902x2070 = 6x3 grid of 317x690 frames (18)
-        this.load.image('playerrun_src', 'assets/Runninganimation.png');
-        this.load.image('playeridle_src', 'assets/Idlespritesheet.png');
+        // Every one of these is a grid of 720x720 cells; the character art sits
+        // padded inside the cell, so the CELL size is what bakeSheet needs (not
+        // the art's bounding box).
+        //   run:  2880x2160 = 4x3 grid (12 frames)
+        //   idle: 2880x3600 = 4x5 grid (18 frames used; slots 18-19 are empty)
+        //   fall: 2880x1440 = 4x2 grid (8 frames)
+        //   rise: 2880x1440 = 4x2 grid (8 frames)
+        this.load.image('playerfall_src', 'assets/fallinganimation.png');
+        this.load.image('playerrun_src', 'assets/runninganimation.png');
+        this.load.image('playeridle_src', 'assets/idleanimation.png');
+        this.load.image('playerrise_src', 'assets/risinganimation.png');
         this.load.spritesheet('playermelee', 'assets/Sword.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.image('playerfall_src', 'assets/fallinganimation.png');
+        
 
         // --- Enemy Spritesheets ---
         this.load.spritesheet('enemyidle', 'assets/Enemy3-Idle.png', {
@@ -75,15 +82,20 @@ export class BootScene extends Phaser.Scene {
         // source pixel when shrinking, so the result is crisp -- unlike letting the
         // GPU shrink the huge frames live every frame, which undersamples and looks
         // grainy. Done once at load; the master PNGs on disk are never modified.
-        // Both bake to 192px tall so they render ~1:1 at gameplay size on a 2x
-        // display; idle keeps its narrow aspect (317x690 -> 88x192).
+        // All bake to a square 192x192 cell so they render ~1:1 at gameplay size on
+        // a 2x display. srcW/srcH must be the source CELL size -- using the art's
+        // bounding box instead makes bakeSheet stride across the sheet by the wrong
+        // amount, cropping each frame and pulling in slices of its neighbours.
         this.bakeSheet('playerrun_src', 'playerrun', {
             cols: 4, rows: 3, srcW: 720, srcH: 720, dstW: 192, dstH: 192
         });
         this.bakeSheet('playeridle_src', 'playeridle', {
-            cols: 6, rows: 3, srcW: 317, srcH: 690, dstW: 88, dstH: 192
+            cols: 4, rows: 5, srcW: 720, srcH: 720, dstW: 192, dstH: 192, count: 18
         });
         this.bakeSheet('playerfall_src', 'playerfall', {
+            cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
+        });
+        this.bakeSheet('playerrise_src', 'playerrise', {
             cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
         });
 
@@ -109,6 +121,12 @@ export class BootScene extends Phaser.Scene {
         this.anims.create({
             key: 'playerfall',
             frames: this.anims.generateFrameNumbers('playerfall', { start: 0, end: 7 }),
+            frameRate: 15,
+            repeat: -1
+        });
+        this.anims.create({
+            key: 'playerrise',
+            frames: this.anims.generateFrameNumbers('playerrise', { start: 0, end: 7 }),
             frameRate: 15,
             repeat: -1
         });

@@ -41,9 +41,16 @@ identical regardless of `RES`:
 - **All loading and animation registration happens once in `BootScene`.** Animations live on
   the global AnimationManager, so any scene can `play()` them by key. Add new assets/anims here,
   grouped by category (Player / Enemy / VFX / Tilemap / Audio: Music / Audio: SFX).
-- **`bakeSheet()`** downscales the high-res player run/idle sheets into crisp gameplay-size
-  spritesheets at load time (the browser's canvas resampler avoids the grain the GPU produces
-  when shrinking huge frames live). The source PNGs on disk are never modified.
+- **`bakeSheet()`** downscales the high-res player sheets (run / idle / fall / rise) into crisp
+  gameplay-size spritesheets at load time (the browser's canvas resampler avoids the grain the
+  GPU produces when shrinking huge frames live). The source PNGs on disk are never modified.
+  All four sources are 720x720-cell grids that bake to 192x192.
+  - **`srcW`/`srcH` must be the source CELL size, not the artwork's bounding box.** The art sits
+    padded inside its cell (idle's character is only 317x690 within a 720x720 cell). Passing the
+    bounding box makes `bakeSheet` stride across the sheet by the wrong amount, so every frame is
+    cropped *and* pulls in slices of its neighbours. If a baked animation looks zoomed-in with
+    bits of other frames intruding, check these numbers against `cols*srcW x rows*srcH` — it must
+    equal the PNG's real dimensions.
 - The player renders every animation at a constant on-screen height via `syncPlayerSize()`,
   which recomputes scale + physics body from the current frame on each animation change (the
   sheets have different native resolutions).
@@ -74,3 +81,19 @@ identical regardless of `RES`:
   console for a missing-asset error first, and confirm the file is actually under `assets/`.
 - Sounds live on the global sound manager and do **not** auto-stop on scene change; each scene
   stops its own music via an `events.once('shutdown', ...)` handler so tracks don't overlap.
+- **Never set `roundPixels: true` on the followed camera.** `startFollow(target, roundPixels, …)`
+  takes it as the *second* arg, and Phaser's `Camera.preRender()` floors the lerped scroll then
+  writes the floored value **back** into `scrollX/scrollY`. With our `lerp` of `0.1` the per-frame
+  advance (`gap * 0.1`) is under 1px whenever the camera is within 10 world px of the player, so
+  `Math.floor` discards it entirely — the camera stalls, then ratchets forward in integer jumps
+  instead of tracking. At `setZoom(RES)` each stalled world pixel is `RES` screen px of apparent
+  player displacement, which shows up as a **ghosted second copy of the player during fast motion**
+  (most visible on jumps at 500px/s; ordinary running at 200px/s hides it). The game-config
+  `render: { roundPixels: true }` is the same trap — `CameraManager` pushes it onto every camera.
+- **Coyote time (`groundedRecently`) must gate jump *permission* only, never animation state.**
+  `lastgroundedtime` is refreshed on the same frame a jump fires, so `groundedRecently` stays true
+  for `COYOTE_MS` while the player is already ascending. Air animations therefore test the raw
+  `onGround`, and are checked *before* the run/idle branches — otherwise the grounded branches win
+  and run/idle plays in mid-air until coyote time expires, with `playerrise` starting ~120ms late.
+  The `FALL_VELOCITY` dead zone (no branch matches between -100 and +100 px/s) is deliberate: it
+  lets rise carry through the jump apex instead of flickering into fall.
