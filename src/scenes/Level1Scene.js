@@ -1,5 +1,9 @@
 import { RES } from '../constants.js';
-
+/**
+ * cd /Users/Home/Desktop/Ace/Ace
+git commit -m "Fix run sheet filename case for case-sensitive hosting"
+git push origin main
+ */
 const DEBUG_VERSION = '1.1';
 
 // Every player animation renders at this on-screen height (world px), regardless
@@ -11,8 +15,8 @@ const PLAYER_DISPLAY_HEIGHT = 96;
 const PLAYER_BODY = { w: 25 / 62, h: 57 / 64, ox: 22 / 64, oy: 6 / 64 };
 const PLAYER_HITBOX = {
     playeridle: { w: 25 / 64, h: 63 / 64, ox: 0, oy: 0 },
-    playerrun: { w: 16 / 64, h: 61 / 64, ox: 0, oy: 0 },
-    playerfall: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 },
+    playerrun: { w: 23 / 64, h: 61 / 64, ox: 0, oy: 0 },
+    playerfall: { w: 23 / 64, h: 57 / 64, ox: 0, oy: 0 },
     playermelee: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 },
     playerrise: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 }
 };
