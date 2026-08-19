@@ -25,11 +25,9 @@ export class BootScene extends Phaser.Scene {
         this.load.image('playerrun_src', 'assets/runninganimation.png');
         this.load.image('playeridle_src', 'assets/idleanimation.png');
         this.load.image('playerrise_src', 'assets/risinganimation.png');
-        this.load.spritesheet('playermelee', 'assets/Sword.png', {
-            frameWidth: 64,
-            frameHeight: 64
-        });
-        
+        this.load.image('playerrangedattack_src', 'assets/cardprojectile.png');
+        this.load.image('playermelee_src', 'assets/downslash.png');
+        this.load.image('playermelee2_src', 'assets/upslash.png');
 
         // --- Enemy Spritesheets ---
         this.load.spritesheet('enemyidle', 'assets/Enemy3-Idle.png', {
@@ -58,7 +56,7 @@ export class BootScene extends Phaser.Scene {
         });
 
         // --- VFX / Projectiles ---
-        this.load.image('playerrangedattack', 'assets/15.png');
+    
         this.load.spritesheet('playerrangedattackexplosion', 'assets/Laserexplosion_recolored.png', {
             frameWidth: 225,
             frameHeight: 400
@@ -98,6 +96,15 @@ export class BootScene extends Phaser.Scene {
         this.bakeSheet('playerrise_src', 'playerrise', {
             cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
         });
+        this.bakeSheet('playerrangedattack_src', 'playerrangedattack', {
+            cols: 4, rows: 1, srcW: 240, srcH: 240, dstW: 64, dstH: 64
+        });
+        this.bakeSheet('playermelee_src', 'playermelee', {
+            cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
+        });
+        this.bakeSheet('playermelee2_src', 'playermelee2', {
+            cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
+        });
 
         // --- Player Animations ---
         this.anims.create({
@@ -113,9 +120,17 @@ export class BootScene extends Phaser.Scene {
             repeat: -1
         });
         this.anims.create({
-            key: 'playermelee',
-            frames: this.anims.generateFrameNumbers('playermelee', { start: 0, end: 4 }),
-            frameRate: 10,
+            key: 'playermelee1',
+            // 8 frames at 20fps = 400ms, sitting just above the 350ms attack cooldown.
+            // These play on a spawned slash sprite, not on the player.
+            frames: this.anims.generateFrameNumbers('playermelee', { start: 0, end: 7 }),
+            frameRate: 20,
+            repeat: 0
+        });
+        this.anims.create({
+            key: 'playermelee2',
+            frames: this.anims.generateFrameNumbers('playermelee2', { start: 0, end: 7 }),
+            frameRate: 20,
             repeat: 0
         });
         this.anims.create({
@@ -128,6 +143,12 @@ export class BootScene extends Phaser.Scene {
             key: 'playerrise',
             frames: this.anims.generateFrameNumbers('playerrise', { start: 0, end: 7 }),
             frameRate: 15,
+            repeat: -1
+        });
+        this.anims.create({
+            key: 'playerrangedattack',
+            frames: this.anims.generateFrameNumbers('playerrangedattack', { start: 0, end: 3 }),
+            frameRate: 10,
             repeat: -1
         });
 

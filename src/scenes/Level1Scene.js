@@ -1,9 +1,5 @@
 import { RES } from '../constants.js';
-/**
- * cd /Users/Home/Desktop/Ace/Ace
-git commit -m "Fix run sheet filename case for case-sensitive hosting"
-git push origin main
- */
+
 const DEBUG_VERSION = '1.1';
 
 // Every player animation renders at this on-screen height (world px), regardless
@@ -21,6 +17,36 @@ const PLAYER_HITBOX = {
     playerrise: { w: 25 / 64, h: 57 / 64, ox: 0, oy: 0 }
 };
 const COYOTE_MS = 120;
+// How far in front of the player the melee zone -- and the slash VFX drawn over it -- sits.
+const MELEE_REACH = 30;
+// Slash sheets bake to a 192px cell; the player renders at PLAYER_DISPLAY_HEIGHT (96).
+const SLASH_SCALE = 0.6;
+// 1-based frame index at which the blade is extended enough to deal damage. The first
+// four frames of both slash sheets are a short wind-up (art grows from ~172px to ~462px).
+const MELEE_ACTIVE_FROM = 5;
+// Swings alternate down -> up -> down. The two sheets were authored facing OPPOSITE
+// directions -- downslash sweeps upper-right to lower-left (a left-facing attack) while
+// upslash sweeps lower-left to upper-right (right-facing) -- so each carries its own
+// facesRight flag rather than sharing one flip rule. If a swing looks mirrored, flip
+// that sheet's flag; nothing else needs to change.
+const SLASH = {
+    down: { texture: 'playermelee',  anim: 'playermelee1', facesRight: false, next: 'up' },
+    up:   { texture: 'playermelee2', anim: 'playermelee2', facesRight: false,  next: 'down' }
+};
+// Render order. Higher draws on top; objects sharing a depth fall back to creation
+// order. Gaps of 10 leave room to slot new bands in without renumbering.
+// The swing is its own sprite (see playermeleeattack) rather than a player animation,
+// so the body keeps running/idling independently of it. At SLASH < PLAYER the blade
+// sweeps BEHIND the player; raise it above PLAYER to draw the swing in front.
+const DEPTH = {
+    BACKGROUND: 0,
+    TILES: 10,
+    ENEMY: 20,
+    PLAYER: 30,
+    SLASH: 35,
+    VFX: 21,
+    HUD: 1000
+};
 // Only switch to the fall animation once descending faster than this (px/s). Tiny
 // tile-edge bounces keep vy small; a real fall blows past it. Prevents the fall/run
 // flicker (and the hitbox-resize feedback loop it caused) at platform edges.
@@ -42,6 +68,7 @@ export class Level1Scene extends Phaser.Scene {
         const map = this.make.tilemap({ key: 'level1map' });
         const tileset = map.addTilesetImage('dungeon_', 'dungeon_tiles');
         const groundLayer = map.createLayer('Tile Layer 1', tileset, 0, 130);
+        groundLayer.setDepth(DEPTH.TILES);
         groundLayer.setCollisionByExclusion([-1]);
         this.map = map;
         this.groundLayer = groundLayer;
@@ -54,6 +81,7 @@ export class Level1Scene extends Phaser.Scene {
         // --- Player Setup ---
         this.player = this.physics.add.sprite(48, 203, 'playerrun');
         this.player.setOrigin(0.5, 0.5);
+        this.player.setDepth(DEPTH.PLAYER);
         this.player.play('playeridle');
         this.player.on('animationstart', () => this.syncPlayerSize());
         this.syncPlayerSize();
@@ -73,19 +101,23 @@ export class Level1Scene extends Phaser.Scene {
         this.player.health = 3;
         this.player.setCollideWorldBounds(true);
         this.player.lastgroundedtime = 0;
+        this.player.slashdirection = 'down';
+        // Reset here, not just on the sprite's own teardown: the scene restarts on retry,
+        // and a swing in flight when the player died would leave a destroyed sprite here.
+        this.activeSlash = null;
 
-        this.player.on('animationupdate', (anim, frame) => {
-            if (anim.key !== 'playermelee') return;
-            this.player.meleeActive = frame.index === 2 || frame.index === 4;
-        });
+        // The melee damage window is driven by the spawned slash sprite, not the player
+        // (see playermeleeattack) -- Phaser fires animation events on whichever object is
+        // playing the animation, and the player never plays a melee anim.
 
-        this.playermeleeattackhitbox = this.add.zone(this.player.x, this.player.y, 32, 50);
+        this.playermeleeattackhitbox = this.add.zone(this.player.x, this.player.y, 40, 50);
         this.physics.add.existing(this.playermeleeattackhitbox);
         this.playermeleeattackhitbox.body.setAllowGravity(false);
         this.physics.add.collider(this.player, groundLayer);
         
         // --- Enemy Setup ---
         this.enemy = this.physics.add.sprite(750, 150, 'enemyidle');
+        this.enemy.setDepth(DEPTH.ENEMY);
         this.enemy.isAttacking = false;
         this.enemy.attackCooldown = 0;
         this.enemy.health = 31;
@@ -143,6 +175,7 @@ export class Level1Scene extends Phaser.Scene {
             fill: '#00ff00',
             fontFamily: 'monospace'
         });
+        this.debugVersionText.setDepth(DEPTH.HUD);
         this.debugVersionText.setScrollFactor(0);
         this.debugVersionText.setScale(1 / cam.zoom);
         this.debugVersionText.setVisible(false);
@@ -167,12 +200,12 @@ export class Level1Scene extends Phaser.Scene {
         if (this.wasd.right.isDown) {
             this.player.direction = 'right';
             this.player.setVelocityX(200);
-            if (!this.player.isAttacking) this.player.flipX = true;
+            this.player.flipX = true;
             moving = true;
         } else if (this.wasd.left.isDown) {
             this.player.direction = 'left';
             this.player.setVelocityX(-200);
-            if (!this.player.isAttacking) this.player.flipX = false;
+            this.player.flipX = false;
             moving = true;
         } else {
             this.player.setVelocityX(0);
@@ -183,22 +216,22 @@ export class Level1Scene extends Phaser.Scene {
             this.player.setVelocityY(-500);
         }
 
-        // --- Animation: melee > rise/fall > run > idle ---
+        // --- Animation: rise/fall > run > idle ---
         // Air states are checked FIRST and gated on onGround, not groundedRecently.
         // Coyote time extends jump *permission* only -- using it here meant that for the
         // first COYOTE_MS of every jump the grounded branches still won, so run/idle
         // played while ascending and rise only kicked in 120ms late.
-        if (!this.player.isAttacking) {
-            const vy = this.player.body.velocity.y;
-            if (!onGround && vy < -FALL_VELOCITY) {
-                this.player.play('playerrise', true);
-            } else if (!onGround && vy > FALL_VELOCITY) {
-                this.player.play('playerfall', true);
-            } else if (groundedRecently && moving) {
-                this.player.play('playerrun', true);
-            } else if (groundedRecently && !moving) {
-                this.player.play('playeridle', true);
-            }
+        // Attacking no longer suppresses this: the slash is a separate sprite layered
+        // over the player, so the body keeps running/idling/jumping underneath it.
+        const vy = this.player.body.velocity.y;
+        if (!onGround && vy < -FALL_VELOCITY) {
+            this.player.play('playerrise', true);
+        } else if (!onGround && vy > FALL_VELOCITY) {
+            this.player.play('playerfall', true);
+        } else if (groundedRecently && moving) {
+            this.player.play('playerrun', true);
+        } else if (groundedRecently && !moving) {
+            this.player.play('playeridle', true);
         }
 
         // --- Debug readout (toggle with backtick) ---
@@ -210,9 +243,16 @@ export class Level1Scene extends Phaser.Scene {
         }
 
         // --- Melee Hitbox Positioning ---
-        const meleeOffset = this.player.direction === 'right' ? 30 : -30;
+        const meleeOffset = this.player.direction === 'right' ? MELEE_REACH : -MELEE_REACH;
         this.playermeleeattackhitbox.x = this.player.x + meleeOffset;
         this.playermeleeattackhitbox.y = this.player.y;
+
+        // Keep the in-flight slash on the player. Its facing is locked at spawn, so a
+        // mid-swing turn moves the player without whipping the slash to the other side.
+        if (this.activeSlash) {
+            this.activeSlash.x = this.player.x + this.activeSlash.reachOffset;
+            this.activeSlash.y = this.player.y;
+        }
 
         // --- Bullet Cleanup ---
         this.bullets.getChildren().forEach(bullet => {
@@ -228,7 +268,11 @@ export class Level1Scene extends Phaser.Scene {
         if (this.time.now < this.player.rangedAttackCooldown) return;
         this.player.rangedAttackCooldown = this.time.now + 250;
         let bullet = this.bullets.create(this.player.x, this.player.y, 'playerrangedattack');
-        bullet.setScale(0.3);
+        // Groups carry no render order of their own, so each bullet sets its own depth.
+        bullet.setDepth(DEPTH.VFX);
+        bullet.flipX = true
+        bullet.play('playerrangedattack', true);
+        bullet.setScale(0.9);
         bullet.setBodySize(10, 10);
         bullet.body.allowGravity = false;
 
@@ -247,20 +291,41 @@ export class Level1Scene extends Phaser.Scene {
         this.player.isAttacking = true;
         this.player.meleeHasHit = false;
         this.player.meleeActive = false;
-        // The Sword.png sheet faces the opposite default direction from the
-        // run/idle sheets, so the flip is intentionally inverted relative to
-        // movement: facing right needs flipX = false here (it's true in update()).
-        if (this.player.direction === 'right') {
-            this.player.flipX = false;
-        } else {
-            this.player.flipX = true;
-        }
-        this.player.play('playermelee');
-        this.player.once('animationcomplete-playermelee', () => {
+
+        // The slash is its own sprite layered over the player rather than a player
+        // animation, so the player keeps running/idling underneath.
+        const cfg = SLASH[this.player.slashdirection];
+        this.player.slashdirection = cfg.next;
+
+        const facingRight = this.player.direction === 'right';
+        // Line the slash up with the damage zone, which update() parks at player.x +- 30.
+        const offset = facingRight ? MELEE_REACH : -MELEE_REACH;
+        const slash = this.add.sprite(this.player.x + offset, this.player.y, cfg.texture);
+        // Flip only when the player's facing disagrees with how the sheet was drawn.
+        slash.setFlipX(facingRight !== cfg.facesRight);
+        slash.setDepth(DEPTH.SLASH);
+        // Slashes bake to a 192px cell while the player renders ~96px tall.
+        slash.setScale(SLASH_SCALE);
+        slash.play(cfg.anim);
+
+        // Damage window + attack teardown both hang off the slash: Phaser fires animation
+        // events on whichever object is playing, and that object is this sprite.
+        slash.on('animationupdate', (anim, frame) => {
+            // frame.index is 1-based; the blade only extends from 0-based frame 4 on.
+            this.player.meleeActive = frame.index >= MELEE_ACTIVE_FROM;
+        });
+        slash.once('animationcomplete', () => {
             this.player.isAttacking = false;
             this.player.meleeActive = false;
-            this.player.flipX = this.player.direction === 'right';
+            slash.destroy();
+            this.activeSlash = null;
         });
+
+        // update() keeps it pinned to the player, who can still move mid-swing. Store the
+        // side explicitly -- flipX no longer implies facing, since the two sheets were
+        // drawn facing opposite ways.
+        slash.reachOffset = offset;
+        this.activeSlash = slash;
     }
 
     syncPlayerSize() {
