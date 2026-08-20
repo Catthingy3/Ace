@@ -28,6 +28,7 @@ export class BootScene extends Phaser.Scene {
         this.load.image('playerrangedattack_src', 'assets/cardprojectile.png');
         this.load.image('playermelee_src', 'assets/downslash.png');
         this.load.image('playermelee2_src', 'assets/upslash.png');
+        this.load.image('rangedattackexplosion_src', 'assets/rangedattackexplosion.png');
 
         // --- Enemy Spritesheets ---
         this.load.spritesheet('enemyidle', 'assets/Enemy3-Idle.png', {
@@ -56,11 +57,8 @@ export class BootScene extends Phaser.Scene {
         });
 
         // --- VFX / Projectiles ---
-    
-        this.load.spritesheet('playerrangedattackexplosion', 'assets/Laserexplosion_recolored.png', {
-            frameWidth: 225,
-            frameHeight: 400
-        });
+        this.load.image('rangedattackexplosion_src', 'assets/rangedattackexplosion.png');
+        
 
         // --- Level / Tilemap ---
         this.load.image('dungeon_tiles', 'assets/dungeon_.png');
@@ -104,6 +102,9 @@ export class BootScene extends Phaser.Scene {
         });
         this.bakeSheet('playermelee2_src', 'playermelee2', {
             cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
+        });
+        this.bakeSheet('rangedattackexplosion_src', 'rangedattackexplosion', {
+            cols: 4, rows: 2, srcW: 240, srcH: 200, dstW: 64, dstH: 64
         });
 
         // --- Player Animations ---
@@ -193,7 +194,7 @@ export class BootScene extends Phaser.Scene {
         // --- VFX Animations ---
         this.anims.create({
             key: 'playerrangedattackexplosion',
-            frames: this.anims.generateFrameNumbers('playerrangedattackexplosion', { start: 0, end: 25 }),
+            frames: this.anims.generateFrameNumbers('rangedattackexplosion', { start: 0, end: 25 }),
             frameRate: 40,
             repeat: 0
         });

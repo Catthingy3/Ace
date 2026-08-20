@@ -47,6 +47,7 @@ const DEPTH = {
     VFX: 21,
     HUD: 1000
 };
+
 // Only switch to the fall animation once descending faster than this (px/s). Tiny
 // tile-edge bounces keep vy small; a real fall blows past it. Prevents the fall/run
 // flicker (and the hitbox-resize feedback loop it caused) at platform edges.
