@@ -29,6 +29,7 @@ export class BootScene extends Phaser.Scene {
         this.load.image('playermelee_src', 'assets/downslash.png');
         this.load.image('playermelee2_src', 'assets/upslash.png');
         this.load.image('rangedattackexplosion_src', 'assets/rangedattackexplosion.png');
+        this.load.image('playermeleeimpact_src', 'assets/meleeimpact.png');
 
         // --- Enemy Spritesheets ---
         this.load.spritesheet('enemyidle', 'assets/Enemy3-Idle.png', {
@@ -104,7 +105,10 @@ export class BootScene extends Phaser.Scene {
             cols: 4, rows: 2, srcW: 720, srcH: 720, dstW: 192, dstH: 192
         });
         this.bakeSheet('rangedattackexplosion_src', 'rangedattackexplosion', {
-            cols: 4, rows: 2, srcW: 240, srcH: 200, dstW: 64, dstH: 64
+            cols: 4, rows: 2, srcW: 240, srcH: 240, dstW: 64, dstH: 64, count: 6
+        });
+        this.bakeSheet('playermeleeimpact_src', 'playermeleeimpact', {
+            cols: 4, rows: 2, srcW: 240, srcH: 240, dstW: 64, dstH: 64
         });
 
         // --- Player Animations ---
@@ -149,8 +153,14 @@ export class BootScene extends Phaser.Scene {
         this.anims.create({
             key: 'playerrangedattack',
             frames: this.anims.generateFrameNumbers('playerrangedattack', { start: 0, end: 3 }),
-            frameRate: 10,
+            frameRate: 24,
             repeat: -1
+        });
+        this.anims.create({
+            key: 'playermeleeimpact',
+            frames: this.anims.generateFrameNumbers('playermeleeimpact', { start: 0, end: 7 }),
+            frameRate: 20,
+            repeat: 0
         });
 
         // --- Enemy Animations ---
@@ -195,7 +205,7 @@ export class BootScene extends Phaser.Scene {
         this.anims.create({
             key: 'playerrangedattackexplosion',
             frames: this.anims.generateFrameNumbers('rangedattackexplosion', { start: 0, end: 25 }),
-            frameRate: 40,
+            frameRate: 18,
             repeat: 0
         });
 

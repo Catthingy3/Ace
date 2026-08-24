@@ -38,6 +38,9 @@ identical regardless of `RES`:
 - The gameplay camera **zooms by `RES`**.
 - Screen-space text **scales its font size by `RES`**.
 
+`RES` is only ever a clean `1` or `2` on the Macs this was developed on. It is **not** clean
+elsewhere — see Packaging for why that becomes a problem the moment this leaves a browser.
+
 ## Assets & Animations
 
 - **All loading and animation registration happens once in `BootScene`.** Animations live on
@@ -53,6 +56,17 @@ identical regardless of `RES`:
     cropped *and* pulls in slices of its neighbours. If a baked animation looks zoomed-in with
     bits of other frames intruding, check these numbers against `cols*srcW x rows*srcH` — it must
     equal the PNG's real dimensions.
+  - **The bake quality is browser-dependent.** `imageSmoothingQuality = 'high'` is the whole point
+    of the function, and **Firefox has never implemented it** — the assignment is a silent no-op,
+    so Firefox falls back to plain bilinear. At a 3.75x reduction (720 -> 192) bilinear samples
+    ~2x2 source pixels and discards the rest, which is exactly the undersampling grain this
+    function exists to remove. Chrome/Edge/Safari honour it. If a portable fix is ever needed,
+    bake in halving steps (720 -> 360 -> 192) instead of one jump: successive 2x reductions
+    approximate a box filter and look the same in every engine. Moot once we ship on Electron
+    (see Packaging), which bundles one Chromium.
+  - **The `_src` images stay resident after baking and nothing draws them again.** The eight
+    sources total ~34 MP, so ~135 MB of decoded RGBA plus a GPU copy each. `this.textures.remove(srcKey)`
+    at the end of `bakeSheet` reclaims both. Harmless on desktop, matters on low-RAM devices.
 - The player renders every animation at a constant on-screen height via `syncPlayerSize()`,
   which recomputes scale + physics body from the current frame on each animation change (the
   sheets have different native resolutions).
@@ -91,7 +105,23 @@ identical regardless of `RES`:
   instead of tracking. At `setZoom(RES)` each stalled world pixel is `RES` screen px of apparent
   player displacement, which shows up as a **ghosted second copy of the player during fast motion**
   (most visible on jumps at 500px/s; ordinary running at 200px/s hides it). The game-config
-  `render: { roundPixels: true }` is the same trap — `CameraManager` pushes it onto every camera.
+  `render: { roundPixels: true }` is the same trap — `CameraManager` pushes it onto every camera,
+  and `pixelArt: true` sets `roundPixels` implicitly, so it's the same bug one step removed.
+- **The player's physics body must stay BOTTOM-anchored in the frame** — this produces the *same
+  ghosting symptom* as the `roundPixels` trap above and is easily mistaken for it. `config.h` in
+  `PLAYER_HITBOX` differs per animation (idle 63/64, run 61/64, fall/rise 57/64) while every sheet
+  bakes to the same 192px cell, so `fh` and the 0.5 scale are constant and **only the body height
+  changes on an anim swap**. With `yOffset = fh * config.oy` (i.e. `0`) the body's top was pinned
+  and its bottom moved: landing (`playerfall` -> `playerrun`) grew the box 6 world px *downward*
+  into the floor tile, and Arcade resolved the penetration by shoving the player up in one frame —
+  12-18 screen px at `setZoom(RES)`. Hence `yOffset = fh * (1 - config.h) + (fh * config.oy)`.
+  - **Telling the two apart:** the camera bug ghosts *everything* (tilemap and enemy included); this
+    one is **player-only**, because only the player's body is being resized. It also fires on
+    landings rather than continuously during fast motion, and is intermittent — a mid-air swap
+    resizes into empty space and separates nothing, so only swaps that overlap a tile pop.
+  - This is the vertical twin of the horizontal bug already fixed in `syncPlayerSize` (sizing the
+    body from frame *width* made boxes jump sideways). Deriving from `fh` fixed X; Y needed the
+    anchor change.
 - **Coyote time (`groundedRecently`) must gate jump *permission* only, never animation state.**
   `lastgroundedtime` is refreshed on the same frame a jump fires, so `groundedRecently` stays true
   for `COYOTE_MS` while the player is already ascending. Air animations therefore test the raw
@@ -99,3 +129,86 @@ identical regardless of `RES`:
   and run/idle plays in mid-air until coyote time expires, with `playerrise` starting ~120ms late.
   The `FALL_VELOCITY` dead zone (no branch matches between -100 and +100 px/s) is deliberate: it
   lets rise carry through the jump apex instead of flickering into fall.
+- **`onGround` must test `blocked.down`, NEVER `touching.down`.** Arcade stamps the contact faces
+  in `separateY`/`separateX` *before* the `overlapOnly` early-return, so a plain `overlap()` — which
+  separates nothing and moves nothing — still sets `touching.down`/`touching.up` on both bodies.
+  The player carries `overlap(player, enemyAttackHitbox)`, and that zone is a tall column spanning
+  from just under the enemy all the way to the floor (`smashHeight` = distance to ground), so
+  descending anywhere beneath the boss set `touching.down` and the old `onGround` believed it.
+  - **Coyote time turns one bogus frame into a real exploit.** A single spurious contact refreshes
+    `lastgroundedtime`, which grants `groundedRecently` for the full `COYOTE_MS` — so the jump gate
+    hands out a free mid-air jump for 120ms, repeatedly, anywhere inside that column.
+  - **Symptom signature:** SPACE produces a y-gain mid-air but the player does **not** visibly
+    switch to run/idle. That combination is diagnostic, and it looks like a collision-group mistake
+    when it isn't. It happens because the two gates read different things on purpose (see the coyote
+    entry above): the animation branches test raw `onGround`, which is true for a single ~16ms frame
+    and invisible, while the jump gate tests `groundedRecently`, which stays true for 120ms.
+  - Tile and world-bounds collisions set `blocked`, not `touching`, so `blocked.down` covers every
+    real ground contact here. `body.onFloor()` just returns `blocked.down` internally.
+  - **If a solid moving platform is ever added as a physics body** (rather than a tile), body-vs-body
+    collision sets `touching`, not `blocked`, so it would not register as ground under this test.
+    Track that contact explicitly in the platform's collider callback — do **not** reinstate
+    `touching.down`, or this bug comes straight back.
+
+## Packaging (planned: Electron -> Steam, PC only)
+
+The intended destination is a **Windows-only Electron build on Steam**. Nothing is set up yet —
+there is no `package.json` in the project, and it still deploys as a static folder. These are the
+conclusions from scoping it, recorded so they don't get re-derived.
+
+- **The game code itself needs no porting.** All four scenes were grepped for `window`, `document`,
+  `localStorage`, `navigator`, and `fetch`: zero hits. Everything goes through Phaser (`this.sound`,
+  `this.input`, `this.scale`, `this.textures`). The only direct browser API in the project is
+  `window.devicePixelRatio` in `constants.js`. Electron runs Chromium and the game already runs in
+  Chromium, so pointing it at `index.html` is genuinely the whole port.
+- **`file://` will black-screen the first build.** Electron loads from `file://` by default, which
+  breaks two things at once: the `07.tmj` tilemap load is XHR and gets blocked by `webSecurity`, and
+  the player sheets taint the canvas so `bakeSheet`'s `tex.refresh()` throws a `SecurityError` trying
+  to upload a tainted canvas to WebGL. Fix by registering a custom `app://` protocol as standard +
+  secure in the main process. Do **not** reach for `webSecurity: false`. This is the first thing to
+  solve — everything else is downstream of the app actually rendering.
+- **`RES` must stop deriving from `devicePixelRatio` once packaged.** Windows display scaling is
+  routinely 125% / 150% / 175% and is the factory default on most laptops, so `RES` lands on `1.25`
+  or `1.5` and the gameplay camera gets `setZoom(1.5)`. A fractional zoom over a tilemap is the
+  standard recipe for seams and shimmer between tiles, and it interacts with the deliberately-`false`
+  `roundPixels` above. **This has never been seen in testing** — development has only ever hit
+  `RES` 1 or 2. In a packaged app we own the window, so the fix is to pin the render resolution to a
+  fixed value and let `Scale.FIT` do the rest, which also kills the related multi-monitor bug (`RES`
+  is computed once at module load, so dragging between mixed-DPI displays never updates it).
+- **Two things get better for free.** `titlemusic.play()` in `MenuScene.create()` currently runs with
+  no user gesture, so browsers suspend it until first click; Electron's
+  `autoplayPolicy: 'no-user-gesture-required'` makes it just play. And official Electron builds ship
+  proprietary codecs, so the MP3s load — which matters given the black-screen-on-failed-`sound.add()`
+  gotcha above.
+
+### Steam specifics
+
+- **No code signing needed.** Steam ships through its own client, so Windows builds face no
+  SmartScreen wall — no certificate, no reputation period. (The signing/notarization cost is a macOS
+  concern, which PC-only avoids entirely.)
+- **The Steam Overlay is the real risk.** The overlay hooks the render pipeline, Chromium renders in
+  a separate GPU process via ANGLE, and the two often don't cooperate — the overlay silently fails to
+  appear in Electron apps, taking Shift+Tab, screenshots, and achievement toasts with it. Usually
+  fixable with launch flags (`--in-process-gpu` first, sometimes `--disable-gpu-sandbox` or a forced
+  `--use-angle=d3d11`), but the working combination varies by machine. **Test on real Windows
+  hardware early**, not near launch.
+- **Use `steamworks.js`, not `greenworks`.** Most tutorials point at greenworks; it's unmaintained.
+  Either way it's a native module, so it rebuilds per Electron ABI version.
+- **Logistics:** $100 Steam Direct per app (recoupable at $1k revenue), and Valve requires a **30-day
+  minimum** between the store page going live and release. Builds upload via `steamcmd`/SteamPipe.
+- **Shippable-vs-runs gap** is the options menu, fullscreen toggle, volume control, and key rebinding
+  — not the packaging.
+
+## Known issues (unfixed)
+
+- **`rangedattackexplosion` bakes with the wrong cell height.** `BootScene` passes `srcH: 200`, but
+  `rangedattackexplosion.png` is 960x480 — a 4x2 grid of **240x240**, not 240x200. Row 1 is read from
+  y=200 instead of y=240, so the bottom row is cropped and offset. Same class of mistake as the
+  `srcW`/`srcH` warning above.
+- **The explosion animation asks for frames that don't exist.** `playerrangedattackexplosion` uses
+  `generateFrameNumbers({ start: 0, end: 25 })`, but that bake only registers `cols*rows` = 8 frames.
+- **`rangedattackexplosion_src` is loaded twice** in `preload()` (Player VFX block and again under
+  VFX / Projectiles). Harmless, but Phaser warns.
+
+Every other sheet's `cols*srcW x rows*srcH` was verified against the real PNG dimensions — the
+explosion is the only mismatch.

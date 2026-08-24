@@ -19,6 +19,9 @@ const PLAYER_HITBOX = {
 const COYOTE_MS = 120;
 // How far in front of the player the melee zone -- and the slash VFX drawn over it -- sits.
 const MELEE_REACH = 30;
+const IMPACT_REACH = 34;
+const IMPACT_Y_OFFSET = 20;
+const IMPACT_SCALE = 0.6;
 // Slash sheets bake to a 192px cell; the player renders at PLAYER_DISPLAY_HEIGHT (96).
 const SLASH_SCALE = 0.6;
 // 1-based frame index at which the blade is extended enough to deal damage. The first
@@ -29,6 +32,7 @@ const MELEE_ACTIVE_FROM = 5;
 // upslash sweeps lower-left to upper-right (right-facing) -- so each carries its own
 // facesRight flag rather than sharing one flip rule. If a swing looks mirrored, flip
 // that sheet's flag; nothing else needs to change.
+const EXPLOSION_SCALE = 0.8;
 const SLASH = {
     down: { texture: 'playermelee',  anim: 'playermelee1', facesRight: false, next: 'up' },
     up:   { texture: 'playermelee2', anim: 'playermelee2', facesRight: false,  next: 'down' }
@@ -142,7 +146,9 @@ export class Level1Scene extends Phaser.Scene {
         this.physics.add.overlap(this.playermeleeattackhitbox, this.enemy, this.meleeHitEnemy, null, this);
         this.physics.add.overlap(this.player, this.enemyAttackHitbox, this.onPlayerInHitbox, null, this);
         this.physics.add.overlap(this.bullets, this.enemy, this.hitEnemy, null, this);
-
+        this.impactVFX = this.add.sprite(0, 0, 'playermeleeimpact');
+        this.impactVFX.setVisible(false);
+        
         // --- Input Setup ---
         this.wasd = this.input.keyboard.addKeys({
             up: Phaser.Input.Keyboard.KeyCodes.SPACE,
@@ -160,8 +166,9 @@ export class Level1Scene extends Phaser.Scene {
         
         // Sounds live on the global manager and don't auto-stop when the scene
         // ends, so kill the track on shutdown to prevent it overlapping the next scene.
-        this.events.once('shutdown', () => this.backgroundMusic.stop());
-
+        this.events.once('shutdown', () => 
+            this.backgroundMusic.stop());
+            this.sound.stopByKey('playerrangedattacksound');
         // --- Debug Tools ---
         this.physics.world.createDebugGraphic();
         this.physics.world.debugGraphic.visible = false;
@@ -190,7 +197,7 @@ export class Level1Scene extends Phaser.Scene {
     // --- Update Loop ---
     update() {
         const body = this.player.body;
-        const onGround = body && (body.touching?.down || body.blocked?.down || body.onFloor && body.onFloor());
+        const onGround = body && (body.blocked?.down || body.onFloor && body.onFloor());
         if (onGround) {
             this.player.lastgroundedtime = this.time.now;
         }
@@ -273,7 +280,7 @@ export class Level1Scene extends Phaser.Scene {
         bullet.setDepth(DEPTH.VFX);
         bullet.flipX = true
         bullet.play('playerrangedattack', true);
-        bullet.setScale(0.9);
+        bullet.setScale(0.7*1.3, 0.9*0.7);
         bullet.setBodySize(10, 10);
         bullet.body.allowGravity = false;
 
@@ -346,7 +353,12 @@ export class Level1Scene extends Phaser.Scene {
         this.player.body.setSize(bw, bh, false);
         // Center horizontally in the frame, add per-animation offset.
         const xOffset = (fw - bw) / 2 + (fh * config.ox);
-        const yOffset = fh * config.oy;
+        // Bottom-align the body in the frame. config.h differs per animation (idle 63/64
+        // vs fall 57/64), so a top-anchored body moves its BOTTOM on every anim swap --
+        // landing (fall -> run) grew the box 6 world px straight down into the floor tile,
+        // and Arcade resolved that penetration by shoving the player up in a single frame.
+        // Bottom-aligning makes those height differences grow upward into empty space.
+        const yOffset = fh * (1 - config.h) + (fh * config.oy);
         this.player.body.setOffset(xOffset, yOffset);
     }
 
@@ -384,7 +396,8 @@ export class Level1Scene extends Phaser.Scene {
         const enemy  = objA.texture.key === 'playerrangedattack' ? objB : objA;
         bullet.body.enable = false;
         bullet.setVelocity(0, 0);
-        bullet.setRotation(bullet.fireAngle + Math.PI / 2);
+        bullet.setRotation(Math.random() * Math.PI * 2);
+        bullet.setScale(EXPLOSION_SCALE);
         bullet.play('playerrangedattackexplosion');
 
         bullet.once('animationcomplete-playerrangedattackexplosion', () => {
@@ -431,9 +444,12 @@ export class Level1Scene extends Phaser.Scene {
 
     destroyBulletOnPlatform(bullet) {
         if (bullet && bullet.active) {
+            
             bullet.body.enable = false;
+            
             bullet.setVelocity(0, 0);
-            bullet.setRotation(bullet.fireAngle + Math.PI / 2);
+            bullet.setRotation(Math.random() * Math.PI * 2);
+            bullet.setScale(EXPLOSION_SCALE);
             bullet.play('playerrangedattackexplosion');
             bullet.once('animationcomplete-playerrangedattackexplosion', () => {
                 bullet.destroy();
