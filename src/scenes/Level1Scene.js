@@ -164,11 +164,16 @@ export class Level1Scene extends Phaser.Scene {
         this.backgroundMusic = this.sound.add('introtheme', { loop: true, volume: 0.3 });
         this.backgroundMusic.play();
         
-        // Sounds live on the global manager and don't auto-stop when the scene
-        // ends, so kill the track on shutdown to prevent it overlapping the next scene.
-        this.events.once('shutdown', () => 
-            this.backgroundMusic.stop());
+        // Sounds live on the global manager and don't auto-stop when the scene ends, so
+        // kill the track on shutdown to prevent it overlapping the next scene. `remove`
+        // as well as `stop`: add() registers an instance on the GLOBAL manager, and the
+        // scene re-adds one on every retry, so stopping alone strands a dead instance
+        // per playthrough (observed climbing 7 -> 18 across restarts).
+        this.events.once('shutdown', () => {
+            this.backgroundMusic.stop();
+            this.sound.remove(this.backgroundMusic);
             this.sound.stopByKey('playerrangedattacksound');
+        });
         // --- Debug Tools ---
         this.physics.world.createDebugGraphic();
         this.physics.world.debugGraphic.visible = false;
@@ -192,6 +197,7 @@ export class Level1Scene extends Phaser.Scene {
             this.debugVersionText.setVisible(this.physics.world.debugGraphic.visible);
             console.log('Debug toggled:', this.physics.world.debugGraphic.visible, 'Version:', DEBUG_VERSION);
         });
+
     }
 
     // --- Update Loop ---

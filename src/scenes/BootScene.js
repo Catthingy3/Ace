@@ -204,7 +204,7 @@ export class BootScene extends Phaser.Scene {
         // --- VFX Animations ---
         this.anims.create({
             key: 'playerrangedattackexplosion',
-            frames: this.anims.generateFrameNumbers('rangedattackexplosion', { start: 0, end: 25 }),
+            frames: this.anims.generateFrameNumbers('rangedattackexplosion', { start: 0, end: 5 }),
             frameRate: 18,
             repeat: 0
         });

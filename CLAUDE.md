@@ -149,6 +149,33 @@ elsewhere — see Packaging for why that becomes a problem the moment this leave
     collision sets `touching`, not `blocked`, so it would not register as ground under this test.
     Track that contact explicitly in the platform's collider callback — do **not** reinstate
     `touching.down`, or this bug comes straight back.
+- **`fixedStep: false` in the arcade config (`main.js`) is load-bearing — do not remove it.**
+  Arcade's default is a fixed-step accumulator: it banks each frame's delta and steps physics in
+  fixed 16.67ms chunks. A scene restart spends **~100ms** inside `create()` rebuilding the tilemap,
+  sprites and colliders, and that whole spike gets banked as ~6 pending steps, leaving the
+  accumulator parked exactly on the step boundary. From then on sub-millisecond frame jitter tips
+  it either side every frame — one frame banks 0 steps, the next banks 2 — and it never re-centres.
+  `fixedStep: false` zeroes the accumulator every frame and always steps exactly once with the real
+  delta (see `phaser.js` ~149177), so render and physics are phase-locked by construction. The
+  trade-off is frame-rate-dependent, non-deterministic physics, which is fine for a single-player
+  game and is the standard fix.
+  - **Zeroing `world._elapsed` at the end of `create()` does NOT work** — it was tried first. The
+    Arcade plugin runs `world.update()` on the scene's UPDATE event, i.e. *after* `create()` has
+    returned, so the ~100ms delta for the frame containing `create()` is banked *after* the reset
+    and the accumulator ends up parked anyway. Any accumulator reset has to happen on the first
+    `update()` tick, not in `create()`.
+  - **Symptom:** the player stutters/shakes during *any* animation, but **only after a retry**,
+    never on a fresh page load. Reported alongside the mouse cursor flickering.
+  - **Why it misleads:** every health metric looks perfect. `fps` is a flat 60, `getScenes(true)`
+    shows a single `Level1`, and display-list and body counts are stable. Nothing looks wrong
+    because nothing *is* wrong except the physics/render phase.
+  - **How to confirm in 30s** — log `player.body.velocity.y` each `update()` and diff it. A healthy
+    run steps a repeating **13/13/14** (= gravity 800 / 60fps = 13.33). A desynced run alternates
+    **0 and 26** — repeated values interleaved with double steps. Clean on first load, broken after
+    a restart, is the whole diagnosis.
+  - `_elapsed` is a private field. The supported alternative is `fixedStep: false` in the arcade
+    config in `main.js`, which makes physics use the real frame delta and always match the render,
+    at the cost of frame-rate-dependent (non-deterministic) physics.
 
 ## Packaging (planned: Electron -> Steam, PC only)
 
