@@ -42,8 +42,18 @@
          "width":140,
          "x":0,
          "y":0
+        }, 
+        {
+         "id":2,
+         "image":"",
+         "name":"Image Layer 1",
+         "opacity":1,
+         "type":"imagelayer",
+         "visible":true,
+         "x":0,
+         "y":0
         }],
- "nextlayerid":2,
+ "nextlayerid":3,
  "nextobjectid":1,
  "orientation":"orthogonal",
  "renderorder":"right-down",

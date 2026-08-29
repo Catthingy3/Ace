@@ -51,6 +51,9 @@ const DEPTH = {
     VFX: 21,
     HUD: 1000
 };
+const DASH_SPEED = 700;
+const DASH_COOLDOWN = 700; // milliseconds
+const DASH_DURATION = 200; // milliseconds
 
 // Only switch to the fall animation once descending faster than this (px/s). Tiny
 // tile-edge bounces keep vy small; a real fall blows past it. Prevents the fall/run
@@ -100,13 +103,19 @@ export class Level1Scene extends Phaser.Scene {
 
         this.player.attackCooldown = 0;
         this.player.rangedAttackCooldown = 0;
+        this.player.dashCooldown = 0;
+        this.player.dashEndTime = 0;
+        this.player.dashDirection = 'right';
         this.player.isAttacking = false;
+
         this.player.direction = 'right';
         this.player.meleeActive = false;
         this.player.health = 3;
         this.player.setCollideWorldBounds(true);
         this.player.lastgroundedtime = 0;
         this.player.slashdirection = 'down';
+        
+        
         // Reset here, not just on the sprite's own teardown: the scene restarts on retry,
         // and a swing in flight when the player died would leave a destroyed sprite here.
         this.activeSlash = null;
@@ -115,7 +124,7 @@ export class Level1Scene extends Phaser.Scene {
         // (see playermeleeattack) -- Phaser fires animation events on whichever object is
         // playing the animation, and the player never plays a melee anim.
 
-        this.playermeleeattackhitbox = this.add.zone(this.player.x, this.player.y, 40, 50);
+        this.playermeleeattackhitbox = this.add.zone(this.player.x, this.player.y, 70 , 50);
         this.physics.add.existing(this.playermeleeattackhitbox);
         this.playermeleeattackhitbox.body.setAllowGravity(false);
         this.physics.add.collider(this.player, groundLayer);
@@ -155,6 +164,7 @@ export class Level1Scene extends Phaser.Scene {
             down: Phaser.Input.Keyboard.KeyCodes.S,
             left: Phaser.Input.Keyboard.KeyCodes.A,
             right: Phaser.Input.Keyboard.KeyCodes.D,
+            dash: Phaser.Input.Keyboard.KeyCodes.SHIFT
         });
         this.input.mouse.disableContextMenu();
         this.input.on('pointerdown', (pointer) => this.playermeleeattack(pointer));
@@ -208,10 +218,26 @@ export class Level1Scene extends Phaser.Scene {
             this.player.lastgroundedtime = this.time.now;
         }
         const groundedRecently = this.time.now - this.player.lastgroundedtime < COYOTE_MS;
+        // --- Dash ---
+        // Only the timers are set here; the velocity is applied in the movement block
+        // below, on every frame until dashEndTime. Facing is latched at dash start so
+        // turning mid-dash doesn't whip the player back the other way.
+        if (Phaser.Input.Keyboard.JustDown(this.wasd.dash) && this.time.now > this.player.dashCooldown) {
+            this.player.dashDirection = this.player.direction;
+            this.player.dashEndTime = this.time.now + DASH_DURATION;
+            this.player.dashCooldown = this.time.now + DASH_COOLDOWN;
+        }
+        const dashing = this.time.now < this.player.dashEndTime;
 
         // --- Player Movement (velocity + facing only) ---
+        // The dash branch comes first so it overrides A/D for the dash's full duration.
         let moving = false;
-        if (this.wasd.right.isDown) {
+        if (dashing) {
+            this.player.setVelocityX(this.player.dashDirection === 'right' ? DASH_SPEED : -DASH_SPEED);
+            moving = true;
+            this.player.allowGravity = false;
+            this.player.setVelocityY(0);
+        } else if (this.wasd.right.isDown) {
             this.player.direction = 'right';
             this.player.setVelocityX(200);
             this.player.flipX = true;
@@ -224,6 +250,7 @@ export class Level1Scene extends Phaser.Scene {
         } else {
             this.player.setVelocityX(0);
         }
+        this.player.allowGravity = true;
 
         // --- Jumping ---
         if (this.wasd.up.isDown && (onGround || groundedRecently)) {
@@ -257,7 +284,7 @@ export class Level1Scene extends Phaser.Scene {
         }
 
         // --- Melee Hitbox Positioning ---
-        const meleeOffset = this.player.direction === 'right' ? MELEE_REACH : -MELEE_REACH;
+        const meleeOffset = this.player.lrslash === 'right' ? MELEE_REACH : -MELEE_REACH;
         this.playermeleeattackhitbox.x = this.player.x + meleeOffset;
         this.playermeleeattackhitbox.y = this.player.y;
 
@@ -266,6 +293,11 @@ export class Level1Scene extends Phaser.Scene {
         if (this.activeSlash) {
             this.activeSlash.x = this.player.x + this.activeSlash.reachOffset;
             this.activeSlash.y = this.player.y;
+        }
+        if (this.input.activePointer.worldX > this.player.x) {
+            this.player.lrslash = 'right';
+        } else if (this.input.activePointer.worldX < this.player.x) {
+            this.player.lrslash = 'left';
         }
 
         // --- Bullet Cleanup ---
@@ -311,7 +343,7 @@ export class Level1Scene extends Phaser.Scene {
         const cfg = SLASH[this.player.slashdirection];
         this.player.slashdirection = cfg.next;
 
-        const facingRight = this.player.direction === 'right';
+        const facingRight = this.player.lrslash === 'right';
         // Line the slash up with the damage zone, which update() parks at player.x +- 30.
         const offset = facingRight ? MELEE_REACH : -MELEE_REACH;
         const slash = this.add.sprite(this.player.x + offset, this.player.y, cfg.texture);
@@ -370,7 +402,7 @@ export class Level1Scene extends Phaser.Scene {
 
     // --- Enemy Actions ---
     onPlayerInHitbox(player, hitbox) {
-        if (this.enemy.health <= 0) return;
+        if (!this.enemy.active || this.enemy.health <= 0) return;
         if (this.enemy.isAttacking) return;
         if (this.time.now < this.enemy.attackCooldown) return;
         this.enemy.attackCooldown = this.time.now + 2000;
