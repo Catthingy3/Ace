@@ -129,13 +129,13 @@ export class BootScene extends Phaser.Scene {
             // 8 frames at 20fps = 400ms, sitting just above the 350ms attack cooldown.
             // These play on a spawned slash sprite, not on the player.
             frames: this.anims.generateFrameNumbers('playermelee', { start: 0, end: 7 }),
-            frameRate: 20,
+            frameRate: 30,
             repeat: 0
         });
         this.anims.create({
             key: 'playermelee2',
             frames: this.anims.generateFrameNumbers('playermelee2', { start: 0, end: 7 }),
-            frameRate: 20,
+            frameRate: 30,
             repeat: 0
         });
         this.anims.create({
@@ -206,6 +206,12 @@ export class BootScene extends Phaser.Scene {
             key: 'playerrangedattackexplosion',
             frames: this.anims.generateFrameNumbers('rangedattackexplosion', { start: 0, end: 5 }),
             frameRate: 18,
+            repeat: 0
+        });
+        this.anims.create({
+            key: 'playermeleeimpact',
+            frames: this.anims.generateFrameNumbers('playermeleeimpact', { start: 0, end: 6 }),
+            frameRate: 20,
             repeat: 0
         });
 

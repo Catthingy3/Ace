@@ -21,7 +21,7 @@ const COYOTE_MS = 120;
 const MELEE_REACH = 30;
 const IMPACT_REACH = 34;
 const IMPACT_Y_OFFSET = 20;
-const IMPACT_SCALE = 0.6;
+const IMPACT_SCALE = 1;
 // Slash sheets bake to a 192px cell; the player renders at PLAYER_DISPLAY_HEIGHT (96).
 const SLASH_SCALE = 0.6;
 // 1-based frame index at which the blade is extended enough to deal damage. The first
@@ -450,6 +450,20 @@ export class Level1Scene extends Phaser.Scene {
         if (this.player.meleeHasHit) return;
         this.player.meleeHasHit = true;
         this.damageEnemy(enemy, 10);
+        this.impactVFX = this.add.sprite(this.player.x -30 + IMPACT_REACH, this.player.y + IMPACT_Y_OFFSET, 'playermeleeimpact');
+        this.impactVFX.setScale(IMPACT_SCALE);
+        this.impactVFX.setVisible(true);
+        
+        if (this.player.lrslash === 'left'){ 
+            this.impactVFX.flipX = true;
+        } else if (this.player.lrslash === 'right'){
+            this.impactVFX.flipX = false;
+        }
+    
+
+        this.impactVFX.setDepth(DEPTH.VFX);
+        
+        this.impactVFX.play('playermeleeimpact');
     }
 
     damageEnemy(enemy, amount) {

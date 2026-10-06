@@ -26,13 +26,32 @@ export class MenuScene extends Phaser.Scene {
         }).setOrigin(0.5);
         
         
-        this.titlemusic = this.sound.add('Titletheme', { loop: true });
-        this.titlemusic.play();
-        this.titlemusic.setVolume(1.0);
+        this.titlemusic = this.sound.add('Titletheme', { loop: true, volume: 1.0 });
         // Stop the title theme on shutdown so it doesn't overlap the level's music.
         this.events.once('shutdown', () => this.titlemusic.stop());
+
         const start = () => this.scene.start('Level1');
-        this.input.keyboard.once('keydown-SPACE', start);
-        this.input.once( 'pointerdown', start);
+        const armStart = () => {
+            this.input.keyboard.once('keydown-SPACE', start);
+            this.input.once('pointerdown', start);
+        };
+
+        // Browsers start the WebAudio context suspended until a user gesture.
+        // Phaser's global unlock listener (on document.body) resumes it, but
+        // resume() is async -- if the SAME gesture is also wired to start()
+        // here, scene.start('Level1') fires (and stops titlemusic via the
+        // shutdown handler above) before the resume promise ever resolves, so
+        // the music is killed before it's audible. Make the first gesture
+        // unlock-and-play only; wire up the level-start handlers afterward so
+        // it takes a second press/click to actually leave the menu.
+        if (this.sound.locked) {
+            this.sound.once('unlocked', () => {
+                this.titlemusic.play();
+                armStart();
+            });
+        } else {
+            this.titlemusic.play();
+            armStart();
+        }
     }
 }
