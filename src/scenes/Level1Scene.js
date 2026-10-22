@@ -138,6 +138,7 @@ export class Level1Scene extends Phaser.Scene {
         this.flyer.setCollideWorldBounds(true);
         this.flyer.setScale(2);
         this.flyer.setBodySize(44, 50);
+        
         this.flyer.body.allowGravity = false;
         this.flyer.play('flyeridle');
         //--Goomba Setup--
@@ -148,9 +149,11 @@ export class Level1Scene extends Phaser.Scene {
         this.goomba.health = 10;
         this.goomba.setCollideWorldBounds(true);
         this.goomba.setScale(2);
-        this.goomba.setBodySize(44, 50);
+        this.goomba.setBodySize(30, 30);
         this.goomba.body.allowGravity = true;
+        this.goomba.setOffset(30, 34);
         this.goomba.play('goombaenemyrun');
+        
         const smashHeight = this.getDistanceToGround(this.flyer) + 10;
         const smashYOffset = (this.flyer.displayHeight / 2) + (smashHeight / 2);
         this.flyerAttackHitbox = this.add.zone(this.flyer.x, this.flyer.y + smashYOffset, 80, smashHeight);
