@@ -31,29 +31,33 @@ export class BootScene extends Phaser.Scene {
         this.load.image('rangedattackexplosion_src', 'assets/rangedattackexplosion.png');
         this.load.image('playermeleeimpact_src', 'assets/meleeimpact.png');
 
-        // --- Enemy Spritesheets ---
-        this.load.spritesheet('enemyidle', 'assets/Enemy3-Idle.png', {
+        // --- Flyer Spritesheets ---
+        this.load.spritesheet('flyeridle', 'assets/Enemy3-Idle.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyhit', 'assets/Enemy3-Hit.png', {
+        this.load.spritesheet('flyerhit', 'assets/Enemy3-Hit.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemydeath', 'assets/Enemy3-Die.png', {
+        this.load.spritesheet('flyerdeath', 'assets/Enemy3-Die.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyattackstart', 'assets/Enemysmashattackstart.png', {
+        this.load.spritesheet('flyerattackstart', 'assets/Enemysmashattackstart.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyattackloop', 'assets/Enemysmashloop.png', {
+        this.load.spritesheet('flyerattackloop', 'assets/Enemysmashloop.png', {
             frameWidth: 64,
             frameHeight: 64
         });
-        this.load.spritesheet('enemyattackend', 'assets/Enemysmashattackend.png', {
+        this.load.spritesheet('flyerattackend', 'assets/Enemysmashattackend.png', {
             frameWidth: 64,
+            frameHeight: 64
+        });
+        this.load.spritesheet('goombaenemyrun', 'assets/Mushroom-Run.png', {
+            frameWidth: 80,
             frameHeight: 64
         });
 
@@ -163,40 +167,40 @@ export class BootScene extends Phaser.Scene {
             repeat: 0
         });
 
-        // --- Enemy Animations ---
+        // --- Flyer Animations ---
         this.anims.create({
-            key: 'enemyidle',
-            frames: this.anims.generateFrameNumbers('enemyidle', { start: 0, end: 7 }),
+            key: 'flyeridle',
+            frames: this.anims.generateFrameNumbers('flyeridle', { start: 0, end: 7 }),
             frameRate: 10,
             repeat: -1
         });
         this.anims.create({
-            key: 'enemyhit',
-            frames: this.anims.generateFrameNumbers('enemyhit', { start: 0, end: 3 }),
+            key: 'flyerhit',
+            frames: this.anims.generateFrameNumbers('flyerhit', { start: 0, end: 3 }),
             frameRate: 10,
             repeat: 0
         });
         this.anims.create({
-            key: 'enemydeath',
-            frames: this.anims.generateFrameNumbers('enemydeath', { start: 0, end: 15 }),
+            key: 'flyerdeath',
+            frames: this.anims.generateFrameNumbers('flyerdeath', { start: 0, end: 15 }),
             frameRate: 14,
             repeat: 0
         });
         this.anims.create({
-            key: 'enemyattackstart',
-            frames: this.anims.generateFrameNumbers('enemyattackstart', { start: 0, end: 3 }),
+            key: 'flyerattackstart',
+            frames: this.anims.generateFrameNumbers('flyerattackstart', { start: 0, end: 3 }),
             frameRate: 10,
             repeat: 0
         });
         this.anims.create({
-            key: 'enemyattackloop',
-            frames: this.anims.generateFrameNumbers('enemyattackloop', { start: 0, end: 2 }),
+            key: 'flyerattackloop',
+            frames: this.anims.generateFrameNumbers('flyerattackloop', { start: 0, end: 2 }),
             frameRate: 10,
             repeat: 4
         });
         this.anims.create({
-            key: 'enemyattackend',
-            frames: this.anims.generateFrameNumbers('enemyattackend', { start: 0, end: 3 }),
+            key: 'flyerattackend',
+            frames: this.anims.generateFrameNumbers('flyerattackend', { start: 0, end: 3 }),
             frameRate: 10,
             repeat: 0
         });
@@ -213,6 +217,12 @@ export class BootScene extends Phaser.Scene {
             frames: this.anims.generateFrameNumbers('playermeleeimpact', { start: 0, end: 6 }),
             frameRate: 20,
             repeat: 0
+        });
+        this.anims.create({
+            key: 'goombaenemyrun',
+            frames: this.anims.generateFrameNumbers('goombaenemyrun', { start: 0, end: 9 }),
+            frameRate: 10,
+            repeat: -1
         });
 
         // Hand off to the menu.

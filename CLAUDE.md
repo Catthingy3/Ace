@@ -5,6 +5,13 @@
 A 2D side-scrolling action game built with **Phaser 3** (v3.88.2). The player fights
 through a dungeon level against a smashing boss enemy, using both ranged and melee attacks.
 
+## Working conventions
+
+- **Confirm before bulk edits.** Do not run scripted find-and-replace (`perl -pi`, `sed -i`, etc.)
+  across source files without asking first. Use the Edit tool for changes so each one is reviewable.
+  Bulk Bash rewrites bypass the per-edit approval prompt and were used once by mistake (renaming
+  `enemy` to `flyer`); that change was kept after the user reviewed it.
+
 ## Tech & Structure
 
 - **Vanilla JS, ES modules, no build step.** `phaser.js` is loaded via a plain `<script>`

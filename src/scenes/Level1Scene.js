@@ -45,7 +45,7 @@ const SLASH = {
 const DEPTH = {
     BACKGROUND: 0,
     TILES: 10,
-    ENEMY: 20,
+    FLYER: 20,
     PLAYER: 30,
     SLASH: 35,
     VFX: 21,
@@ -58,7 +58,7 @@ const DASH_DURATION = 200; // milliseconds
 // Only switch to the fall animation once descending faster than this (px/s). Tiny
 // tile-edge bounces keep vy small; a real fall blows past it. Prevents the fall/run
 // flicker (and the hitbox-resize feedback loop it caused) at platform edges.
-const FALL_VELOCITY = 100;
+const FALL_VELOCITY = 150;
 /**
  * Level1Scene
  * The actual gameplay. Assets and animations are loaded/registered in BootScene,
@@ -129,35 +129,48 @@ export class Level1Scene extends Phaser.Scene {
         this.playermeleeattackhitbox.body.setAllowGravity(false);
         this.physics.add.collider(this.player, groundLayer);
         
-        // --- Enemy Setup ---
-        this.enemy = this.physics.add.sprite(750, 150, 'enemyidle');
-        this.enemy.setDepth(DEPTH.ENEMY);
-        this.enemy.isAttacking = false;
-        this.enemy.attackCooldown = 0;
-        this.enemy.health = 31;
-        this.enemy.setCollideWorldBounds(true);
-        this.enemy.setScale(2);
-        this.enemy.setBodySize(44, 50);
-        this.enemy.body.allowGravity = false;
-        this.enemy.play('enemyidle');
-
-        const smashHeight = this.getDistanceToGround(this.enemy) + 10;
-        const smashYOffset = (this.enemy.displayHeight / 2) + (smashHeight / 2);
-        this.enemyAttackHitbox = this.add.zone(this.enemy.x, this.enemy.y + smashYOffset, 80, smashHeight);
-        this.physics.add.existing(this.enemyAttackHitbox);
-        this.enemyAttackHitbox.body.setAllowGravity(false);
-
-        this.physics.add.collider(this.enemy, groundLayer);
+        // --- Flyer Setup ---
+        this.flyer = this.physics.add.sprite(750, 150, 'flyeridle');
+        this.flyer.setDepth(DEPTH.FLYER);
+        this.flyer.isAttacking = false;
+        this.flyer.attackCooldown = 0;
+        this.flyer.health = 31;
+        this.flyer.setCollideWorldBounds(true);
+        this.flyer.setScale(2);
+        this.flyer.setBodySize(44, 50);
+        this.flyer.body.allowGravity = false;
+        this.flyer.play('flyeridle');
+        //--Goomba Setup--
+        this.goomba = this.physics.add.sprite(400, 200, 'goombaenemyrun');
+        this.goomba.setDepth(DEPTH.FLYER);
+        this.goomba.isAttacking = false;
+        this.goomba.attackCooldown = 0;
+        this.goomba.health = 10;
+        this.goomba.setCollideWorldBounds(true);
+        this.goomba.setScale(2);
+        this.goomba.setBodySize(44, 50);
+        this.goomba.body.allowGravity = true;
+        this.goomba.play('goombaenemyrun');
+        const smashHeight = this.getDistanceToGround(this.flyer) + 10;
+        const smashYOffset = (this.flyer.displayHeight / 2) + (smashHeight / 2);
+        this.flyerAttackHitbox = this.add.zone(this.flyer.x, this.flyer.y + smashYOffset, 80, smashHeight);
+        this.physics.add.existing(this.flyerAttackHitbox);
+        this.flyerAttackHitbox.body.setAllowGravity(false);
 
         // --- Combat Setup ---
+        this.enemies = this.physics.add.group();
+        this.enemies.add(this.flyer);
+        this.enemies.add(this.goomba);
+        this.physics.add.collider(this.enemies, groundLayer);
         this.bullets = this.physics.add.group();
         this.physics.add.collider(this.bullets, this.groundLayer, this.destroyBulletOnPlatform, null, this);
-        this.physics.add.overlap(this.playermeleeattackhitbox, this.enemy, this.meleeHitEnemy, null, this);
-        this.physics.add.overlap(this.player, this.enemyAttackHitbox, this.onPlayerInHitbox, null, this);
-        this.physics.add.overlap(this.bullets, this.enemy, this.hitEnemy, null, this);
+        this.physics.add.overlap(this.playermeleeattackhitbox, this.enemies, this.meleeHitFlyer, null, this);
+        this.physics.add.overlap(this.player, this.flyerAttackHitbox, this.onPlayerInHitbox, null, this);
+        this.physics.add.overlap(this.bullets, this.enemies, this.hitFlyer, null, this);
         this.impactVFX = this.add.sprite(0, 0, 'playermeleeimpact');
         this.impactVFX.setVisible(false);
         
+
         // --- Input Setup ---
         this.wasd = this.input.keyboard.addKeys({
             up: Phaser.Input.Keyboard.KeyCodes.SPACE,
@@ -400,28 +413,28 @@ export class Level1Scene extends Phaser.Scene {
         this.player.body.setOffset(xOffset, yOffset);
     }
 
-    // --- Enemy Actions ---
+    // --- Flyer Actions ---
     onPlayerInHitbox(player, hitbox) {
-        if (!this.enemy.active || this.enemy.health <= 0) return;
-        if (this.enemy.isAttacking) return;
-        if (this.time.now < this.enemy.attackCooldown) return;
-        this.enemy.attackCooldown = this.time.now + 2000;
-        this.enemy.isAttacking = true;
-        this.enemy.play('enemyattackstart');
-        this.enemy.once('animationcomplete-enemyattackstart', () => {
-            this.enemy.isAttacking = false;
-            this.enemy.play('enemyattackloop');
-            const drop = this.getDistanceToGround(this.enemy);
+        if (!this.flyer.active || this.flyer.health <= 0) return;
+        if (this.flyer.isAttacking) return;
+        if (this.time.now < this.flyer.attackCooldown) return;
+        this.flyer.attackCooldown = this.time.now + 2000;
+        this.flyer.isAttacking = true;
+        this.flyer.play('flyerattackstart');
+        this.flyer.once('animationcomplete-flyerattackstart', () => {
+            this.flyer.isAttacking = false;
+            this.flyer.play('flyerattackloop');
+            const drop = this.getDistanceToGround(this.flyer);
             this.tweens.add({
-                targets: this.enemy,
-                y: this.enemy.y + drop,
+                targets: this.flyer,
+                y: this.flyer.y + drop,
                 duration: 250,
                 yoyo: true,
                 ease: 'Quad.easeIn',
                 onComplete: () => {
-                    this.enemy.play('enemyattackend');
-                    this.enemy.once('animationcomplete-enemyattackend', () => {
-                        this.enemy.play('enemyidle');
+                    this.flyer.play('flyerattackend');
+                    this.flyer.once('animationcomplete-flyerattackend', () => {
+                        this.flyer.play('flyeridle');
                     });
                 }
             });
@@ -429,9 +442,9 @@ export class Level1Scene extends Phaser.Scene {
     }
 
     // --- Combat & Damage ---
-    hitEnemy(objA, objB) {
+    hitFlyer(objA, objB) {
         const bullet = objA.texture.key === 'playerrangedattack' ? objA : objB;
-        const enemy  = objA.texture.key === 'playerrangedattack' ? objB : objA;
+        const flyer  = objA.texture.key === 'playerrangedattack' ? objB : objA;
         bullet.body.enable = false;
         bullet.setVelocity(0, 0);
         bullet.setRotation(Math.random() * Math.PI * 2);
@@ -442,14 +455,14 @@ export class Level1Scene extends Phaser.Scene {
             bullet.destroy();
         });
 
-        this.damageEnemy(enemy, 5);
+        this.damageFlyer(flyer, 5);
     }
 
-    meleeHitEnemy(hitbox, enemy) {
+    meleeHitFlyer(hitbox, flyer) {
         if (!this.player.meleeActive) return;
         if (this.player.meleeHasHit) return;
         this.player.meleeHasHit = true;
-        this.damageEnemy(enemy, 10);
+        this.damageFlyer(flyer, 10);
         const offset = this.player.lrslash === 'right' ? IMPACT_REACH : -IMPACT_REACH;
         this.impactVFX = this.add.sprite(this.player.x + offset, this.player.y + IMPACT_Y_OFFSET, 'playermeleeimpact');
         this.impactVFX.setScale(IMPACT_SCALE);
@@ -471,14 +484,14 @@ export class Level1Scene extends Phaser.Scene {
         if (enemy.health <= 0) {
             enemy.body.enable = false;
             enemy.play('enemydeath');
-            enemy.once('animationcomplete-enemydeath', () => {
-                enemy.destroy();
+            flyer.once('animationcomplete-flyerdeath', () => {
+                flyer.destroy();
                 this.scene.start('GameOver', { result: 'win' });
             });
         } else {
-            enemy.setVelocity(0, 0);
-            enemy.play('enemyhit');
-            enemy.chain('enemyidle');
+            flyer.setVelocity(0, 0);
+            flyer.play('flyerhit');
+            flyer.chain('flyeridle');
         }
     }
 
