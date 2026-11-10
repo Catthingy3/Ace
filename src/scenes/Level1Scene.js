@@ -458,14 +458,14 @@ export class Level1Scene extends Phaser.Scene {
             bullet.destroy();
         });
 
-        this.damageFlyer(flyer, 5);
+        this.damageEnemy(flyer, 5);
     }
 
     meleeHitFlyer(hitbox, flyer) {
         if (!this.player.meleeActive) return;
         if (this.player.meleeHasHit) return;
         this.player.meleeHasHit = true;
-        this.damageFlyer(flyer, 10);
+        this.damageEnemy(flyer, 10);
         const offset = this.player.lrslash === 'right' ? IMPACT_REACH : -IMPACT_REACH;
         this.impactVFX = this.add.sprite(this.player.x + offset, this.player.y + IMPACT_Y_OFFSET, 'playermeleeimpact');
         this.impactVFX.setScale(IMPACT_SCALE);
@@ -486,15 +486,15 @@ export class Level1Scene extends Phaser.Scene {
         enemy.health -= amount;
         if (enemy.health <= 0) {
             enemy.body.enable = false;
-            enemy.play('enemydeath');
-            flyer.once('animationcomplete-flyerdeath', () => {
-                flyer.destroy();
+            enemy.play('flyerdeath');
+            enemy.once('animationcomplete-flyerdeath', () => {
+                enemy.destroy();
                 this.scene.start('GameOver', { result: 'win' });
             });
         } else {
-            flyer.setVelocity(0, 0);
-            flyer.play('flyerhit');
-            flyer.chain('flyeridle');
+            enemy.setVelocity(0, 0);
+            enemy.play('flyerhit');
+            enemy.chain('flyeridle');
         }
     }
 
