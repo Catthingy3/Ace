@@ -59,6 +59,10 @@ const DASH_DURATION = 200; // milliseconds
 // tile-edge bounces keep vy small; a real fall blows past it. Prevents the fall/run
 // flicker (and the hitbox-resize feedback loop it caused) at platform edges.
 const FALL_VELOCITY = 150;
+const ENEMY_ANIMS = {
+    flyer: { idle: 'flyeridle', hit: 'flyerhit', death: 'flyerdeath', attackStart: 'flyerattackstart', attackLoop: 'flyerattackloop', attackEnd: 'flyerattackend' },
+    goomba: { run: 'goombaenemyrun', hit: 'goombaenemyhit', death: 'goombaenemydeath' }
+}
 /**
  * Level1Scene
  * The actual gameplay. Assets and animations are loaded/registered in BootScene,
@@ -141,6 +145,7 @@ export class Level1Scene extends Phaser.Scene {
         
         this.flyer.body.allowGravity = false;
         this.flyer.play('flyeridle');
+        this.flyer.enemyType = 'flyer';
         //--Goomba Setup--
         this.goomba = this.physics.add.sprite(400, 200, 'goombaenemyrun');
         this.goomba.setDepth(DEPTH.FLYER);
@@ -153,6 +158,15 @@ export class Level1Scene extends Phaser.Scene {
         this.goomba.body.allowGravity = true;
         this.goomba.setOffset(30, 34);
         this.goomba.play('goombaenemyrun');
+        this.goombaAttackHitbox = this.add.zone(this.goomba.x, this.goomba.y + (this.goomba.displayHeight / 2), 60, 40);
+        this.physics.add.existing(this.goombaAttackHitbox);
+        this.goombaAttackHitbox.body.setAllowGravity(false);
+        this.physics.add.overlap(this.player, this.goombaAttackHitbox, this.onPlayerInHitbox, null, this);
+        this.goombaplatformmanager = this.add.zone(this.goomba.x+70, this.goomba.y+30, 150, 40);
+        this.physics.add.existing(this.goombaplatformmanager);
+        this.goombaplatformmanager.body.setAllowGravity(false);
+        this.goomba.flipX = true;
+        this.goomba.enemyType = 'goomba';
         
         const smashHeight = this.getDistanceToGround(this.flyer) + 10;
         const smashYOffset = (this.flyer.displayHeight / 2) + (smashHeight / 2);
@@ -484,17 +498,18 @@ export class Level1Scene extends Phaser.Scene {
     damageEnemy(enemy, amount) {
         if (enemy.health <= 0) return;
         enemy.health -= amount;
+        const set = ENEMY_ANIMS[enemy.enemyType];
         if (enemy.health <= 0) {
             enemy.body.enable = false;
-            enemy.play('flyerdeath');
-            enemy.once('animationcomplete-flyerdeath', () => {
+            this.playEnemyAnimation(enemy, 'death');
+            enemy.once(`animationcomplete-${set.death}`, () => {
                 enemy.destroy();
                 this.scene.start('GameOver', { result: 'win' });
             });
         } else {
             enemy.setVelocity(0, 0);
-            enemy.play('flyerhit');
-            enemy.chain('flyeridle');
+            this.playEnemyAnimation(enemy, 'hit');
+            enemy.chain(set.idle ?? set.run);
         }
     }
 
@@ -539,5 +554,12 @@ export class Level1Scene extends Phaser.Scene {
             }
         }
         return this.map.heightInPixels - feetY;
+    }
+    playEnemyAnimation(enemy, state) {
+        const set = ENEMY_ANIMS[enemy.enemyType];
+        const animation = set && set[state];
+        if (animation) {
+            enemy.play(animation);
+        }
     }
 }

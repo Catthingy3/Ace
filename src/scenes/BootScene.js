@@ -60,6 +60,14 @@ export class BootScene extends Phaser.Scene {
             frameWidth: 80,
             frameHeight: 64
         });
+        this.load.spritesheet('goombaenemyhit', 'assets/Mushroom-Hit.png', {
+            frameWidth: 80,
+            frameHeight: 64
+        });
+        this.load.spritesheet('goombaenemydeath', 'assets/Mushroom-Die.png', {
+            frameWidth: 80,
+            frameHeight: 64
+        });
 
         // --- VFX / Projectiles ---
         this.load.image('rangedattackexplosion_src', 'assets/rangedattackexplosion.png');
@@ -204,6 +212,18 @@ export class BootScene extends Phaser.Scene {
             frameRate: 10,
             repeat: 0
         });
+        this.anims.create({
+            key: 'goombaenemyhit',
+            frames: this.anims.generateFrameNumbers('goombaenemyhit', { start: 0, end: 4 }),
+            frameRate: 10,
+            repeat: 0
+        });
+        this.anims.create({
+            key: 'goombaenemydeath',
+            frames: this.anims.generateFrameNumbers('goombaenemydeath', { start: 0, end: 14 }),
+            frameRate: 14,
+            repeat: 0
+        });
 
         // --- VFX Animations ---
         this.anims.create({
@@ -220,10 +240,12 @@ export class BootScene extends Phaser.Scene {
         });
         this.anims.create({
             key: 'goombaenemyrun',
-            frames: this.anims.generateFrameNumbers('goombaenemyrun', { start: 0, end: 9 }),
+            frames: this.anims.generateFrameNumbers('goombaenemyrun', { start: 0, end: 7 }),
             frameRate: 10,
             repeat: -1
         });
+        
+        
 
         // Hand off to the menu.
         this.scene.start('Menu');

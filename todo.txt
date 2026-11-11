@@ -1,0 +1,3 @@
+-Goomba turns into flyer for somereason when hit by ranged or melee attack
+-Flyer drops down to ground, affected by gravityh
+-I gotta first fix the goomba so tymin gets to work
